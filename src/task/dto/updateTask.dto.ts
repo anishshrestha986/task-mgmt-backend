@@ -1,4 +1,13 @@
-import { PartialType } from '@nestjs/swagger';
-import { CreateTaskDto } from './createTask.dto';
+import { IsBoolean, IsOptional } from 'class-validator';
 
-export class UpdateTaskDto extends PartialType(CreateTaskDto) {}
+export class UpdateTaskDto {
+  @IsOptional()
+  title?: string;
+
+  @IsOptional()
+  description?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  status?: boolean;
+}

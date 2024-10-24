@@ -7,23 +7,32 @@ import {
   Query,
   InternalServerErrorException,
   HttpException,
+  Delete,
+  Patch,
 } from '@nestjs/common';
 import { TaskService } from './task.service';
 import { InjectConnection } from '@nestjs/mongoose';
-import { Connection, FilterQuery, PaginateOptions, Types } from 'mongoose';
+import {
+  Connection,
+  FilterQuery,
+  PaginateOptions,
+  PipelineStage,
+} from 'mongoose';
 import { CreateTaskDto } from './dto/createTask.dto';
 import { NotFoundException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { GetQueryDto } from '@/dto/getQuery.dto';
 import { pick } from '@/utils/object.util';
 import { ITaskDocument } from '@interfaces/entities';
+import { UpdateTaskDto } from './dto/updateTask.dto';
+import { transaction } from '@utils/transaction.util';
 
-@ApiTags('Support Task')
-@Controller('support-Task')
+@ApiTags('Task')
+@Controller('task')
 export class TaskController {
   constructor(
     @InjectConnection() private readonly mongoConnection: Connection,
-    private Taskservice: TaskService,
+    private taskService: TaskService,
   ) {}
 
   @Get('/')
@@ -36,17 +45,23 @@ export class TaskController {
       'pagination',
     ]);
 
+    const pipeLine: PipelineStage[] = [];
     if (filter.q) {
-      filter['$or'] = [
-        { name: { $regex: filter.q, $options: 'i' } },
-        { email: { $regex: filter.q, $options: 'i' } },
-        { subject: { $regex: filter.q, $options: 'i' } },
-      ];
+      pipeLine.push({
+        $match: {
+          title: {
+            $regex: filter.q,
+            $options: 'i',
+          },
 
-      delete filter.q;
+          description: {
+            $regex: filter.q,
+            $options: 'i',
+          },
+        },
+      });
     }
-
-    const Tasks = await this.Taskservice.getAllTask(filter, options);
+    const Tasks = await this.taskService.getAllTask(pipeLine, options, true);
     return Tasks;
   }
 
@@ -57,14 +72,14 @@ export class TaskController {
     const createTaskData = new CreateTaskDto();
     Object.assign(createTaskData, createTaskDto);
     try {
-      const Task = await this.Taskservice.createTask(createTaskData, session);
+      const Task = await this.taskService.createTask(createTaskData, session);
       await session.commitTransaction();
 
       return Task;
     } catch (error) {
       await session.abortTransaction();
       if (error instanceof HttpException) throw error;
-
+      console.log(error);
       throw new InternalServerErrorException();
     } finally {
       session.endSession();
@@ -73,8 +88,37 @@ export class TaskController {
 
   @Get('/:id')
   async getTaskById(@Param('id') id: string) {
-    const Task = await this.Taskservice.getTaskById(id);
+    const Task = await this.taskService.getTaskById(id);
     if (!Task) throw new NotFoundException('Task not found');
     return Task;
+  }
+
+  @Delete('/:id')
+  async deleteTaskById(@Param('id') id: string) {
+    return await transaction(this.mongoConnection, async (session) => {
+      let Task = await this.taskService.getTaskById(id);
+      if (!Task) throw new NotFoundException('Task not found');
+
+      Task = await this.taskService.deleteTask(id);
+      return Task;
+    });
+  }
+
+  @Patch('/:id')
+  async updateTaskById(
+    @Param('id') id: string,
+    @Body() updateTaskDto: UpdateTaskDto,
+  ) {
+    return await transaction(this.mongoConnection, async (session) => {
+      const task = await this.taskService.getTaskById(id);
+      if (!task) throw new NotFoundException('Task not found');
+
+      const updatedTask = await this.taskService.updateTask(
+        id,
+        updateTaskDto,
+        session,
+      );
+      return updatedTask;
+    });
   }
 }

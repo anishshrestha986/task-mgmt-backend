@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import {
   AggregatePaginateResult,
   ClientSession,
+  PipelineStage,
   PopulateOptions,
 } from 'mongoose';
 import { ITaskDocument, ITaskModel } from '@interfaces/entities';
@@ -18,7 +19,7 @@ export class TaskRepository {
   ) {}
 
   async getAllTask(
-    filter: FilterQuery<ITaskDocument>,
+    filter: FilterQuery<ITaskDocument> | PipelineStage[],
     options: PaginateOptions,
     aggregate?: boolean,
   ) {
@@ -27,6 +28,8 @@ export class TaskRepository {
       const tasks = await this.taskModel.aggregatePaginate(aggregate, options);
 
       return tasks;
+    } else {
+      console.log('filter', filter);
     }
   }
 

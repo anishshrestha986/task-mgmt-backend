@@ -3,6 +3,7 @@ import {
   ClientSession,
   FilterQuery,
   PaginateOptions,
+  PipelineStage,
   PopulateOptions,
 } from 'mongoose';
 import { UpdateTaskDto } from './dto/updateTask.dto';
@@ -26,10 +27,11 @@ export class TaskService {
   }
 
   async getAllTask(
-    filter: FilterQuery<ITaskDocument>,
+    filter: FilterQuery<ITaskDocument> | PipelineStage[],
     options: PaginateOptions,
+    aggregate?: boolean,
   ) {
-    return await this.TaskRepository.getAllTask(filter, options);
+    return await this.TaskRepository.getAllTask(filter, options, aggregate);
   }
 
   async updateTask(
